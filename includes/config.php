@@ -1,5 +1,8 @@
 <?php
 
+// Fuso horário padrão — alinha date() do PHP com os horários do MySQL
+date_default_timezone_set('America/Sao_Paulo');
+
 // Banco de dados
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'sistema_alimentar');
