@@ -1,7 +1,7 @@
 <?php
 /**
  * admin/resumo.php
- * Resumo da refeição do dia (cardápio + totais) com envio à cozinha via
+ * Resumo da enquete do dia (cardápio + totais) com envio à cozinha via
  * WhatsApp (Evolution API) e histórico dos envios anteriores.
  */
 
@@ -11,23 +11,24 @@ require_once __DIR__ . '/../includes/db.php';   // $pdo
 verificar_sessao('admin');
 $usuario = usuario_logado();
 
-// Refeição de hoje
+// Enquete de hoje + refeição vinculada
 $stmt = $pdo->prepare(
-    'SELECT id, titulo, descricao, data_refeicao, horario_limite
-       FROM refeicoes WHERE data_refeicao = :hoje
-      ORDER BY horario_limite DESC LIMIT 1'
+    'SELECT e.id AS enquete_id, e.data_enquete, r.titulo, r.descricao
+       FROM enquetes e
+       JOIN refeicoes r ON r.id = e.refeicao_id
+      WHERE e.data_enquete = :hoje LIMIT 1'
 );
 $stmt->execute([':hoje' => date('Y-m-d')]);
-$refeicao = $stmt->fetch();
+$enquete = $stmt->fetch();
 
 $sim = $nao = $sem_resposta = $total_alunos = $responderam = 0;
-if ($refeicao) {
+if ($enquete) {
     $total_alunos = (int) $pdo->query('SELECT COUNT(*) FROM alunos WHERE ativo = 1')->fetchColumn();
     $st = $pdo->prepare(
         "SELECT COALESCE(SUM(resposta='sim'),0) AS sim, COALESCE(SUM(resposta='nao'),0) AS nao
-           FROM intencoes_alimentares WHERE refeicao_id = :r"
+           FROM intencoes_alimentares WHERE enquete_id = :e"
     );
-    $st->execute([':r' => $refeicao['id']]);
+    $st->execute([':e' => $enquete['enquete_id']]);
     $row = $st->fetch();
     $sim = (int) $row['sim'];
     $nao = (int) $row['nao'];
@@ -35,11 +36,12 @@ if ($refeicao) {
     $sem_resposta = max(0, $total_alunos - $responderam);
 }
 
-// Histórico de envios
+// Histórico de envios (JOIN enquetes + refeicoes)
 $historico = $pdo->query(
-    'SELECT re.enviado_em, re.destinatario, re.status, r.titulo
+    'SELECT re.enviado_em, re.destinatario, re.status, r.titulo, e.data_enquete
        FROM resumos_envio re
-       JOIN refeicoes r ON r.id = re.refeicao_id
+       JOIN enquetes  e ON e.id = re.enquete_id
+       JOIN refeicoes r ON r.id = e.refeicao_id
       ORDER BY re.enviado_em DESC
       LIMIT 20'
 )->fetchAll();
@@ -82,12 +84,12 @@ $historico = $pdo->query(
 
         <div class="resumo-grid">
             <section class="cartao">
-                <h2 style="font-size:1.25rem;margin-bottom:1rem;">Refeição de hoje</h2>
-                <?php if (!$refeicao): ?>
-                    <p>Nenhuma refeição cadastrada para hoje.</p>
+                <h2 style="font-size:1.25rem;margin-bottom:1rem;">Enquete de hoje</h2>
+                <?php if (!$enquete): ?>
+                    <p>Nenhuma enquete cadastrada para hoje.</p>
                 <?php else: ?>
-                    <div class="resumo-linha"><span class="resumo-rotulo">Data</span><span class="resumo-valor"><?= htmlspecialchars(formatar_data($refeicao['data_refeicao'], 'd/m/Y'), ENT_QUOTES, 'UTF-8') ?></span></div>
-                    <div class="resumo-linha"><span class="resumo-rotulo">Cardápio</span><span class="resumo-valor"><?= htmlspecialchars($refeicao['titulo'], ENT_QUOTES, 'UTF-8') ?></span></div>
+                    <div class="resumo-linha"><span class="resumo-rotulo">Data</span><span class="resumo-valor"><?= htmlspecialchars(formatar_data($enquete['data_enquete'], 'd/m/Y'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                    <div class="resumo-linha"><span class="resumo-rotulo">Cardápio</span><span class="resumo-valor"><?= htmlspecialchars($enquete['titulo'], ENT_QUOTES, 'UTF-8') ?></span></div>
                     <div class="resumo-linha"><span class="resumo-rotulo">Alunos ativos</span><span class="resumo-valor"><?= $total_alunos ?></span></div>
                     <div class="resumo-linha"><span class="resumo-rotulo">Responderam</span><span class="resumo-valor"><?= $responderam ?></span></div>
                     <div class="resumo-linha"><span class="resumo-rotulo">SIM</span><span class="resumo-valor"><?= $sim ?></span></div>
@@ -95,7 +97,7 @@ $historico = $pdo->query(
                     <div class="resumo-linha"><span class="resumo-rotulo">Sem resposta</span><span class="resumo-valor"><?= $sem_resposta ?></span></div>
 
                     <button type="button" class="botao-primario botao-enviar" id="btn-enviar"
-                            data-refeicao-id="<?= (int) $refeicao['id'] ?>">Enviar para a cozinha</button>
+                            data-enquete-id="<?= (int) $enquete['enquete_id'] ?>">Enviar para a cozinha</button>
                     <p class="mensagem-sucesso" id="envio-sucesso" hidden>Resumo enviado com sucesso!</p>
                     <p class="mensagem-erro" id="envio-erro" hidden></p>
                 <?php endif; ?>
@@ -124,7 +126,7 @@ $historico = $pdo->query(
         </div>
     </main>
 
-    <?php if ($refeicao): ?>
+    <?php if ($enquete): ?>
     <script>
         (function () {
             const botao   = document.getElementById('btn-enviar');
@@ -139,7 +141,7 @@ $historico = $pdo->query(
                     const resp = await fetch('../api/enviar-resumo.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ refeicao_id: parseInt(botao.dataset.refeicaoId, 10) })
+                        body: JSON.stringify({ enquete_id: parseInt(botao.dataset.enqueteId, 10) })
                     });
                     const d = await resp.json();
                     if (!resp.ok || d.erro) {

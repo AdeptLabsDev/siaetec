@@ -1,10 +1,11 @@
 <?php
 /**
  * api/enviar-resumo.php
- * Endpoint JSON (admin) — monta o resumo da refeição, envia ao WhatsApp da
- * cozinha via Evolution API (cURL) e registra o envio em `resumos_envio`.
+ * Endpoint JSON (admin) — monta o resumo da enquete (dados da enquete +
+ * refeição vinculada), envia ao WhatsApp da cozinha via Evolution API (cURL)
+ * e registra o envio em `resumos_envio`.
  *
- * Entrada: { refeicao_id: int }
+ * Entrada: { enquete_id: int }
  */
 
 require_once __DIR__ . '/../includes/auth.php'; // inicia sessão (não redireciona)
@@ -32,17 +33,23 @@ $dados = json_decode(file_get_contents('php://input'), true);
 if (!is_array($dados)) {
     $dados = $_POST;
 }
-$refeicao_id = filter_var($dados['refeicao_id'] ?? null, FILTER_VALIDATE_INT);
-if (!$refeicao_id) {
-    responder_json(400, ['erro' => 'Refeição inválida.']);
+$enquete_id = filter_var($dados['enquete_id'] ?? null, FILTER_VALIDATE_INT);
+if (!$enquete_id) {
+    responder_json(400, ['erro' => 'Enquete inválida.']);
 }
 
 try {
-    $stmt = $pdo->prepare('SELECT id, titulo, descricao, data_refeicao FROM refeicoes WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $refeicao_id]);
-    $refeicao = $stmt->fetch();
-    if (!$refeicao) {
-        responder_json(404, ['erro' => 'Refeição não encontrada.']);
+    // Enquete + refeição vinculada
+    $stmt = $pdo->prepare(
+        'SELECT e.id, e.data_enquete, r.titulo, r.descricao
+           FROM enquetes e
+           JOIN refeicoes r ON r.id = e.refeicao_id
+          WHERE e.id = :id LIMIT 1'
+    );
+    $stmt->execute([':id' => $enquete_id]);
+    $enquete = $stmt->fetch();
+    if (!$enquete) {
+        responder_json(404, ['erro' => 'Enquete não encontrada.']);
     }
 
     // Totais consolidados
@@ -50,12 +57,12 @@ try {
     $st = $pdo->prepare(
         "SELECT COALESCE(SUM(resposta = 'sim'), 0) AS sim,
                 COALESCE(SUM(resposta = 'nao'), 0) AS nao
-           FROM intencoes_alimentares WHERE refeicao_id = :r"
+           FROM intencoes_alimentares WHERE enquete_id = :e"
     );
-    $st->execute([':r' => $refeicao_id]);
+    $st->execute([':e' => $enquete_id]);
     $tot = $st->fetch();
 } catch (PDOException $e) {
-    responder_json(500, ['erro' => 'Erro ao consultar os dados da refeição.']);
+    responder_json(500, ['erro' => 'Erro ao consultar os dados da enquete.']);
 }
 
 $sim = (int) $tot['sim'];
@@ -65,10 +72,10 @@ $sem_resposta = max(0, $total_alunos - $responderam);
 
 // Monta a mensagem do WhatsApp (context.md §7.6)
 $mensagem  = "*SIAetec — Resumo da merenda*\n";
-$mensagem .= 'Data: ' . formatar_data($refeicao['data_refeicao'], 'd/m/Y') . "\n";
-$mensagem .= 'Cardápio: ' . ($refeicao['titulo']) . "\n";
-if (!empty($refeicao['descricao'])) {
-    $mensagem .= $refeicao['descricao'] . "\n";
+$mensagem .= 'Data: ' . formatar_data($enquete['data_enquete'], 'd/m/Y') . "\n";
+$mensagem .= 'Cardápio: ' . $enquete['titulo'] . "\n";
+if (!empty($enquete['descricao'])) {
+    $mensagem .= $enquete['descricao'] . "\n";
 }
 $mensagem .= "\n";
 $mensagem .= 'Alunos ativos: ' . $total_alunos . "\n";
@@ -114,11 +121,11 @@ $status  = $sucesso ? 'enviado' : 'erro';
 // Registra o envio (histórico/auditoria)
 try {
     $stmt = $pdo->prepare(
-        'INSERT INTO resumos_envio (refeicao_id, admin_id, mensagem, destinatario, status)
-         VALUES (:refeicao, :admin, :mensagem, :destino, :status)'
+        'INSERT INTO resumos_envio (enquete_id, admin_id, mensagem, destinatario, status)
+         VALUES (:enquete, :admin, :mensagem, :destino, :status)'
     );
     $stmt->execute([
-        ':refeicao' => $refeicao_id,
+        ':enquete'  => $enquete_id,
         ':admin'    => $u['usuario_id'],
         ':mensagem' => $mensagem,
         ':destino'  => $destino,

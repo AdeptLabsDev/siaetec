@@ -14,7 +14,7 @@ require_once __DIR__ . '/../includes/db.php';   // $pdo
 verificar_sessao('aluno');
 $usuario = usuario_logado();
 
-$ASSUNTOS = ['cardapio', 'atendimento', 'sistema', 'outro'];
+$ASSUNTOS = ['atendimento', 'sistema', 'outro'];
 
 // --- Processamento AJAX (POST → JSON) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -108,7 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="grupo-campo">
                     <label class="rotulo" for="assunto">Assunto</label>
                     <select class="campo" id="assunto" name="assunto" required>
-                        <option value="cardapio">Cardápio</option>
                         <option value="atendimento">Atendimento</option>
                         <option value="sistema">Sistema</option>
                         <option value="outro">Outro</option>

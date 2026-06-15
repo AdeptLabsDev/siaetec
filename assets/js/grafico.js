@@ -35,7 +35,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const corNao = estilo.getPropertyValue('--cinza-texto').trim() || '#4A555C';
             const corSem = estilo.getPropertyValue('--cinza-medio').trim() || '#D1D1D1';
 
-            new Chart(canvas, {
+            // Destrói a instância anterior antes de recriar (evita crescimento infinito)
+            if (window.graficoPrincipal instanceof Chart) {
+                window.graficoPrincipal.destroy();
+            }
+
+            window.graficoPrincipal = new Chart(canvas, {
                 type: 'bar',
                 data: {
                     labels: labels,

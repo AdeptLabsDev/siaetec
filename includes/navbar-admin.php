@@ -126,10 +126,10 @@ if (!function_exists('nav_ativo')) {
 
     <nav class="nav-links">
         <a class="nav-link<?= nav_ativo('dashboard.php', $pagina_atual) ?>" href="dashboard.php">Dashboard</a>
+        <a class="nav-link<?= nav_ativo('refeicoes.php', $pagina_atual) ?>" href="refeicoes.php">Refeições</a>
+        <a class="nav-link<?= nav_ativo('enquetes.php', $pagina_atual) ?>" href="enquetes.php">Enquetes</a>
         <a class="nav-link<?= nav_ativo('alunos.php', $pagina_atual) ?>" href="alunos.php">Alunos</a>
         <a class="nav-link<?= nav_ativo('turmas.php', $pagina_atual) ?>" href="turmas.php">Turmas</a>
-        <a class="nav-link<?= nav_ativo('refeicoes.php', $pagina_atual) ?>" href="refeicoes.php">Refeições</a>
-        <a class="nav-link<?= nav_ativo('enquete.php', $pagina_atual) ?>" href="enquete.php">Enquete</a>
         <a class="nav-link<?= nav_ativo('resumo.php', $pagina_atual) ?>" href="resumo.php">Resumo</a>
     </nav>
 
@@ -155,10 +155,10 @@ if (!function_exists('nav_ativo')) {
 <aside class="nav-drawer" id="nav-drawer" hidden>
     <button class="nav-drawer-fechar" id="nav-drawer-fechar" aria-label="Fechar menu">&times;</button>
     <a href="dashboard.php">Dashboard</a>
+    <a href="refeicoes.php">Refeições</a>
+    <a href="enquetes.php">Enquetes</a>
     <a href="alunos.php">Alunos</a>
     <a href="turmas.php">Turmas</a>
-    <a href="refeicoes.php">Refeições</a>
-    <a href="enquete.php">Enquete</a>
     <a href="resumo.php">Resumo</a>
     <a href="../logout.php">Sair</a>
 </aside>

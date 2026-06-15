@@ -1,8 +1,8 @@
 <?php
 /**
  * aluno/home.php
- * Início do Aluno — exibe a refeição do dia (hero do prato do dia) e o
- * acesso à enquete, com contador regressivo até o horário limite.
+ * Início do Aluno — exibe a refeição vinculada à enquete de hoje (hero do
+ * prato do dia) e o acesso à enquete, com contador regressivo até o limite.
  */
 
 require_once __DIR__ . '/../includes/auth.php'; // sessão (antes de qualquer HTML)
@@ -11,22 +11,22 @@ require_once __DIR__ . '/../includes/db.php';   // $pdo
 verificar_sessao('aluno');
 $usuario = usuario_logado();
 
-// Busca a refeição cadastrada para a data de hoje
-$hoje = date('Y-m-d');
+// Enquete de hoje + refeição vinculada (JOIN enquetes + refeicoes)
 $stmt = $pdo->prepare(
-    'SELECT id, titulo, descricao, imagem, data_refeicao, horario_limite
-       FROM refeicoes
-      WHERE data_refeicao = :hoje
-      ORDER BY horario_limite DESC
+    'SELECT e.id AS enquete_id, e.data_enquete, e.horario_limite,
+            r.titulo, r.descricao, r.imagem
+       FROM enquetes e
+       JOIN refeicoes r ON r.id = e.refeicao_id
+      WHERE e.data_enquete = CURDATE()
       LIMIT 1'
 );
-$stmt->execute([':hoje' => $hoje]);
-$refeicao = $stmt->fetch();
+$stmt->execute();
+$enquete = $stmt->fetch();
 
-$aberta = $refeicao ? enquete_aberta($refeicao['horario_limite']) : false;
+$aberta = $enquete ? enquete_aberta($enquete['horario_limite']) : false;
 
-// Segundos restantes para o contador (calculado no servidor, sem AJAX)
-$segundos_restantes = $aberta ? max(0, strtotime($refeicao['horario_limite']) - time()) : 0;
+// Segundos restantes para o contador — horário limite vem da ENQUETE
+$segundos_restantes = $aberta ? max(0, strtotime($enquete['horario_limite']) - time()) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -88,7 +88,7 @@ $segundos_restantes = $aberta ? max(0, strtotime($refeicao['horario_limite']) - 
     <?php include __DIR__ . '/../includes/navbar-aluno.php'; ?>
 
     <main class="conteudo">
-        <?php if (!$refeicao): ?>
+        <?php if (!$enquete): ?>
             <section class="cartao">
                 <p class="hero-vazio">Nenhuma refeição disponível no momento.</p>
             </section>
@@ -96,10 +96,10 @@ $segundos_restantes = $aberta ? max(0, strtotime($refeicao['horario_limite']) - 
             <section class="cartao hero">
                 <div class="hero-conteudo">
                     <span class="hero-rotulo">
-                        Prato do dia · <?= htmlspecialchars(formatar_data($refeicao['data_refeicao'], 'd/m'), ENT_QUOTES, 'UTF-8') ?>
+                        Prato do dia · <?= htmlspecialchars(formatar_data($enquete['data_enquete'], 'd/m'), ENT_QUOTES, 'UTF-8') ?>
                     </span>
-                    <h1 class="hero-titulo"><?= htmlspecialchars($refeicao['titulo'], ENT_QUOTES, 'UTF-8') ?></h1>
-                    <p class="hero-descricao"><?= nl2br(htmlspecialchars($refeicao['descricao'] ?? '', ENT_QUOTES, 'UTF-8')) ?></p>
+                    <h1 class="hero-titulo"><?= htmlspecialchars($enquete['titulo'], ENT_QUOTES, 'UTF-8') ?></h1>
+                    <p class="hero-descricao"><?= nl2br(htmlspecialchars($enquete['descricao'] ?? '', ENT_QUOTES, 'UTF-8')) ?></p>
                     <p class="hero-chamada">Registre sua intenção alimentar para ajudar a cozinha a planejar melhor.</p>
 
                     <?php if ($aberta): ?>
@@ -113,8 +113,8 @@ $segundos_restantes = $aberta ? max(0, strtotime($refeicao['horario_limite']) - 
                 </div>
 
                 <img class="hero-imagem"
-                     src="../assets/img/<?= htmlspecialchars(!empty($refeicao['imagem']) ? $refeicao['imagem'] : 'prato-padrao.webp', ENT_QUOTES, 'UTF-8') ?>"
-                     alt="Imagem da refeição: <?= htmlspecialchars($refeicao['titulo'], ENT_QUOTES, 'UTF-8') ?>"
+                     src="../assets/img/<?= !empty($enquete['imagem']) ? 'refeicoes/' . htmlspecialchars($enquete['imagem'], ENT_QUOTES, 'UTF-8') : 'prato-padrao.webp' ?>"
+                     alt="Imagem da refeição: <?= htmlspecialchars($enquete['titulo'], ENT_QUOTES, 'UTF-8') ?>"
                      width="600" height="320">
             </section>
         <?php endif; ?>

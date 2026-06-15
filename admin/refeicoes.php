@@ -1,8 +1,9 @@
 <?php
 /**
  * admin/refeicoes.php
- * Cadastro e listagem de refeições. O status (aberta/encerrada) é
- * calculado dinamicamente com enquete_aberta() a cada exibição.
+ * CRUD do cadastro fixo de refeições (título, descrição, imagem).
+ * A data e o horário limite NÃO pertencem aqui — são da enquete.
+ * Exclusão só é permitida se a refeição não estiver vinculada a enquetes.
  */
 
 require_once __DIR__ . '/../includes/auth.php'; // sessão (antes de qualquer HTML)
@@ -11,44 +12,53 @@ require_once __DIR__ . '/../includes/db.php';   // $pdo
 verificar_sessao('admin');
 $usuario = usuario_logado();
 
-// --- Processamento de cadastro (POST → PRG) ---
+// --- Processamento de ações (POST → PRG) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $titulo        = trim($_POST['titulo'] ?? '');
-    $descricao     = trim($_POST['descricao'] ?? '');
-    $imagem        = trim($_POST['imagem'] ?? '');
-    $data_refeicao = trim($_POST['data_refeicao'] ?? '');
-    $horario_bruto = trim($_POST['horario_limite'] ?? '');
+    $acao = $_POST['acao'] ?? 'cadastrar';
 
-    // O input datetime-local envia 'YYYY-MM-DDTHH:MM' — normaliza para DATETIME
-    $horario_limite = $horario_bruto !== '' ? str_replace('T', ' ', $horario_bruto) . ':00' : '';
+    if ($acao === 'cadastrar') {
+        $titulo    = trim($_POST['titulo'] ?? '');
+        $descricao = trim($_POST['descricao'] ?? '');
+        $imagem    = trim($_POST['imagem'] ?? '');
 
-    $data_ok    = (bool) strtotime($data_refeicao);
-    $horario_ok = (bool) strtotime($horario_limite);
+        if ($titulo === '') {
+            redirecionar('refeicoes.php?msg=erro');
+        }
 
-    if ($titulo === '' || !$data_ok || !$horario_ok) {
-        redirecionar('refeicoes.php?msg=erro');
+        $stmt = $pdo->prepare(
+            'INSERT INTO refeicoes (admin_id, titulo, descricao, imagem)
+             VALUES (:admin, :titulo, :descricao, :imagem)'
+        );
+        $stmt->execute([
+            ':admin'     => $usuario['usuario_id'],
+            ':titulo'    => $titulo,
+            ':descricao' => $descricao !== '' ? $descricao : null,
+            ':imagem'    => $imagem !== '' ? $imagem : null,
+        ]);
+        redirecionar('refeicoes.php?msg=cadastrada');
     }
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO refeicoes (admin_id, titulo, descricao, imagem, data_refeicao, horario_limite)
-         VALUES (:admin, :titulo, :descricao, :imagem, :data, :horario)'
-    );
-    $stmt->execute([
-        ':admin'     => $usuario['usuario_id'],
-        ':titulo'    => $titulo,
-        ':descricao' => $descricao !== '' ? $descricao : null,
-        ':imagem'    => $imagem !== '' ? $imagem : null,
-        ':data'      => $data_refeicao,
-        ':horario'   => $horario_limite,
-    ]);
-    redirecionar('refeicoes.php?msg=cadastrada');
+    if ($acao === 'excluir') {
+        $refeicao_id = filter_var($_POST['refeicao_id'] ?? null, FILTER_VALIDATE_INT);
+        if ($refeicao_id) {
+            // Só exclui se não houver enquetes vinculadas
+            $st = $pdo->prepare('SELECT COUNT(*) FROM enquetes WHERE refeicao_id = :id');
+            $st->execute([':id' => $refeicao_id]);
+            if ((int) $st->fetchColumn() > 0) {
+                redirecionar('refeicoes.php?msg=vinculada');
+            }
+            $pdo->prepare('DELETE FROM refeicoes WHERE id = :id')->execute([':id' => $refeicao_id]);
+            redirecionar('refeicoes.php?msg=excluida');
+        }
+        redirecionar('refeicoes.php');
+    }
+
+    redirecionar('refeicoes.php');
 }
 
 // Listagem
 $refeicoes = $pdo->query(
-    'SELECT id, titulo, data_refeicao, horario_limite
-       FROM refeicoes
-      ORDER BY data_refeicao DESC, horario_limite DESC'
+    'SELECT id, titulo, descricao, imagem FROM refeicoes ORDER BY titulo ASC'
 )->fetchAll();
 
 $msg = $_GET['msg'] ?? '';
@@ -78,6 +88,7 @@ $msg = $_GET['msg'] ?? '';
             border-radius: var(--raio-borda-pequeno); padding: 0.7rem 0.85rem;
         }
         .area-texto:focus { outline: none; border-color: var(--vermelho-atrativo); }
+        .dica { font-size: 0.75rem; color: var(--cinza-texto); margin-top: 0.25rem; }
         .tabela { width: 100%; border-collapse: collapse; }
         .tabela th, .tabela td {
             text-align: left; padding: 0.65rem 0.5rem;
@@ -85,8 +96,9 @@ $msg = $_GET['msg'] ?? '';
         }
         .tabela th { color: var(--cinza-texto); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.02em; }
         .selo { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
-        .selo-aberta    { background-color: rgba(46,125,50,0.12); color: var(--verde-sucesso); }
-        .selo-encerrada { background-color: rgba(74,85,92,0.12); color: var(--cinza-texto); }
+        .selo-sim { background-color: rgba(46,125,50,0.12); color: var(--verde-sucesso); }
+        .selo-nao { background-color: rgba(74,85,92,0.12); color: var(--cinza-texto); }
+        .acao-link { background: none; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--vermelho-atrativo); padding: 0; }
         @media (max-width: 1023px) { .admin-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -98,33 +110,32 @@ $msg = $_GET['msg'] ?? '';
 
         <?php if ($msg === 'cadastrada'): ?>
             <p class="mensagem-sucesso">Refeição cadastrada com sucesso.</p>
+        <?php elseif ($msg === 'excluida'): ?>
+            <p class="mensagem-sucesso">Refeição excluída.</p>
+        <?php elseif ($msg === 'vinculada'): ?>
+            <p class="mensagem-erro">Não é possível excluir: esta refeição está vinculada a uma ou mais enquetes.</p>
         <?php elseif ($msg === 'erro'): ?>
-            <p class="mensagem-erro">Verifique título, data e horário limite e tente novamente.</p>
+            <p class="mensagem-erro">Informe ao menos o título da refeição.</p>
         <?php endif; ?>
 
         <div class="admin-grid">
             <section class="cartao admin-form">
                 <h2>Nova refeição</h2>
                 <form method="post" action="refeicoes.php">
+                    <input type="hidden" name="acao" value="cadastrar">
                     <div class="grupo-campo">
                         <label class="rotulo" for="titulo">Título</label>
-                        <input class="campo" type="text" id="titulo" name="titulo" required placeholder="Ex.: Almoço de terça">
+                        <input class="campo" type="text" id="titulo" name="titulo" required placeholder="Ex.: Feijoada">
                     </div>
                     <div class="grupo-campo">
                         <label class="rotulo" for="descricao">Descrição do cardápio</label>
-                        <textarea class="area-texto" id="descricao" name="descricao" rows="3"></textarea>
+                        <textarea class="area-texto" id="descricao" name="descricao" rows="3"
+                                  placeholder="Ex.: Arroz, Feijão, Carne de Porco, Couve"></textarea>
                     </div>
                     <div class="grupo-campo">
-                        <label class="rotulo" for="imagem">Imagem (.webp em /assets/img)</label>
+                        <label class="rotulo" for="imagem">Imagem (.webp em /assets/img/refeicoes)</label>
                         <input class="campo" type="text" id="imagem" name="imagem" placeholder="Ex.: feijoada.webp">
-                    </div>
-                    <div class="grupo-campo">
-                        <label class="rotulo" for="data_refeicao">Data da refeição</label>
-                        <input class="campo" type="date" id="data_refeicao" name="data_refeicao" required value="<?= date('Y-m-d') ?>">
-                    </div>
-                    <div class="grupo-campo">
-                        <label class="rotulo" for="horario_limite">Horário limite para resposta</label>
-                        <input class="campo" type="datetime-local" id="horario_limite" name="horario_limite" required>
+                        <span class="dica">Apenas o nome do arquivo. Em branco usa a imagem padrão.</span>
                     </div>
                     <button type="submit" class="botao-primario">Cadastrar</button>
                 </form>
@@ -134,21 +145,28 @@ $msg = $_GET['msg'] ?? '';
                 <h2>Refeições cadastradas</h2>
                 <table class="tabela">
                     <thead>
-                        <tr><th>Data</th><th>Título</th><th>Horário limite</th><th>Status</th></tr>
+                        <tr><th>Título</th><th>Descrição</th><th>Imagem</th><th>Ação</th></tr>
                     </thead>
                     <tbody>
                         <?php if (!$refeicoes): ?>
                             <tr><td colspan="4">Nenhuma refeição cadastrada.</td></tr>
                         <?php else: foreach ($refeicoes as $r):
-                            $aberta = enquete_aberta($r['horario_limite']); ?>
+                            $desc = (string) ($r['descricao'] ?? '');
+                            $resumo = mb_strlen($desc) > 60 ? mb_substr($desc, 0, 60) . '…' : $desc; ?>
                             <tr>
-                                <td><?= htmlspecialchars(formatar_data($r['data_refeicao'], 'd/m/Y'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars($r['titulo'], ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars(formatar_data($r['horario_limite'], 'd/m/Y H:i'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($resumo, ENT_QUOTES, 'UTF-8') ?></td>
                                 <td>
-                                    <span class="selo <?= $aberta ? 'selo-aberta' : 'selo-encerrada' ?>">
-                                        <?= $aberta ? 'Aberta' : 'Encerrada' ?>
+                                    <span class="selo <?= !empty($r['imagem']) ? 'selo-sim' : 'selo-nao' ?>">
+                                        <?= !empty($r['imagem']) ? 'Sim' : 'Não' ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <form method="post" action="refeicoes.php" onsubmit="return confirm('Excluir esta refeição?');">
+                                        <input type="hidden" name="acao" value="excluir">
+                                        <input type="hidden" name="refeicao_id" value="<?= (int) $r['id'] ?>">
+                                        <button type="submit" class="acao-link">Excluir</button>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>

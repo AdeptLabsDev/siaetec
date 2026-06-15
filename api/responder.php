@@ -4,9 +4,9 @@
  * Endpoint JSON — registra ou atualiza a intenção alimentar do aluno.
  * Consumido via fetch (AJAX) por aluno/enquete.php.
  *
- * Entrada (JSON ou form): { refeicao_id: int, resposta: 'sim'|'nao' }
+ * Entrada (JSON ou form): { enquete_id: int, resposta: 'sim'|'nao' }
  * Códigos: 200 sucesso · 400 inválido · 401 sem sessão · 403 encerrada
- *          · 404 refeição inexistente · 405 método · 500 erro interno
+ *          · 404 enquete inexistente · 405 método · 500 erro interno
  */
 
 require_once __DIR__ . '/../includes/auth.php'; // inicia a sessão (não redireciona)
@@ -40,37 +40,37 @@ if (!is_array($dados)) {
     $dados = $_POST;
 }
 
-$refeicao_id = filter_var($dados['refeicao_id'] ?? null, FILTER_VALIDATE_INT);
-$resposta    = $dados['resposta'] ?? '';
+$enquete_id = filter_var($dados['enquete_id'] ?? null, FILTER_VALIDATE_INT);
+$resposta   = $dados['resposta'] ?? '';
 
 // 3. Validação de entrada
-if ($refeicao_id === false || $refeicao_id === null || !in_array($resposta, ['sim', 'nao'], true)) {
+if ($enquete_id === false || $enquete_id === null || !in_array($resposta, ['sim', 'nao'], true)) {
     responder_json(400, ['erro' => 'Dados inválidos.']);
 }
 
 try {
-    // 4. A refeição precisa existir
-    $stmt = $pdo->prepare('SELECT id, horario_limite FROM refeicoes WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $refeicao_id]);
-    $refeicao = $stmt->fetch();
-    if (!$refeicao) {
-        responder_json(404, ['erro' => 'Refeição não encontrada.']);
+    // 4. A enquete precisa existir
+    $stmt = $pdo->prepare('SELECT id, horario_limite FROM enquetes WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $enquete_id]);
+    $enquete = $stmt->fetch();
+    if (!$enquete) {
+        responder_json(404, ['erro' => 'Enquete não encontrada.']);
     }
 
     // 5. A enquete precisa estar aberta (verificação reativa pelo horário limite)
-    if (!enquete_aberta($refeicao['horario_limite'])) {
+    if (!enquete_aberta($enquete['horario_limite'])) {
         responder_json(403, ['erro' => 'Enquete encerrada.']);
     }
 
-    // 6. UPSERT respeitando o UNIQUE (aluno_id, refeicao_id):
+    // 6. UPSERT respeitando o UNIQUE (aluno_id, enquete_id):
     //    insere a resposta ou atualiza a existente, registrando alterado_em.
-    $sql = 'INSERT INTO intencoes_alimentares (aluno_id, refeicao_id, resposta)
-            VALUES (:aluno, :refeicao, :resposta)
+    $sql = 'INSERT INTO intencoes_alimentares (aluno_id, enquete_id, resposta)
+            VALUES (:aluno, :enquete, :resposta)
             ON DUPLICATE KEY UPDATE resposta = :resposta_upd, alterado_em = CURRENT_TIMESTAMP';
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
         ':aluno'        => $usuario['aluno_id'],
-        ':refeicao'     => $refeicao_id,
+        ':enquete'      => $enquete_id,
         ':resposta'     => $resposta,
         ':resposta_upd' => $resposta,
     ]);

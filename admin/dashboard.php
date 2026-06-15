@@ -18,8 +18,8 @@ $hoje = date('Y-m-d');
 $stmt = $pdo->prepare(
     'SELECT COUNT(*)
        FROM intencoes_alimentares i
-       JOIN refeicoes r ON r.id = i.refeicao_id
-      WHERE r.data_refeicao = :hoje'
+       JOIN enquetes e ON e.id = i.enquete_id
+      WHERE e.data_enquete = :hoje'
 );
 $stmt->execute([':hoje' => $hoje]);
 $respostas_hoje = (int) $stmt->fetchColumn();
@@ -52,6 +52,7 @@ $respostas_hoje = (int) $stmt->fetchColumn();
         .dash-card .rotulo { font-size: 0.9rem; color: var(--cinza-texto); }
         .grafico-wrapper { min-height: 320px; }
         .grafico-wrapper h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+        #grafico-historico { max-height: 320px; }
 
         @media (max-width: 767px) {
             .dash-cards { grid-template-columns: 1fr; }

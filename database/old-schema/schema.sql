@@ -3,7 +3,6 @@
 -- Schema do banco de dados
 -- Banco: sistema_alimentar
 -- Codificação: utf8mb4_unicode_ci
--- Versão: 2.0 — Separação Refeições / Enquetes
 -- =============================================================
 
 SET NAMES utf8mb4;
@@ -70,16 +69,17 @@ CREATE TABLE IF NOT EXISTS `alunos` (
 
 -- -------------------------------------------------------------
 -- Tabela: refeicoes
--- Cadastro fixo de refeições — reutilizável em múltiplas enquetes.
--- Não contém data nem horário limite (isso pertence à enquete).
+-- Cada refeição representa uma enquete para um dia específico.
+-- O sistema encerra automaticamente ao atingir o horario_limite.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `refeicoes` (
-    `id`          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `admin_id`    INT UNSIGNED    NOT NULL,                   -- Admin que cadastrou
-    `titulo`      VARCHAR(100)    NOT NULL,                   -- Ex: "Feijoada"
-    `descricao`   TEXT            DEFAULT NULL,               -- Ex: "Arroz, Feijão, Carne de Porco, Couve"
-    `imagem`      VARCHAR(100)    DEFAULT NULL,               -- Nome do arquivo em assets/img/refeicoes/
-    `criado_em`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `id`               INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    `admin_id`         INT UNSIGNED    NOT NULL,              -- Usuário admin que cadastrou
+    `titulo`           VARCHAR(100)    NOT NULL,              -- Ex: "Almoço de terça"
+    `descricao`        TEXT            DEFAULT NULL,          -- Descrição do cardápio
+    `data_refeicao`    DATE            NOT NULL,
+    `horario_limite`   DATETIME        NOT NULL,              -- Após este horário, a enquete é encerrada automaticamente
+    `criado_em`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_refeicoes_admin` FOREIGN KEY (`admin_id`) REFERENCES `usuarios` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -87,43 +87,22 @@ CREATE TABLE IF NOT EXISTS `refeicoes` (
 
 
 -- -------------------------------------------------------------
--- Tabela: enquetes
--- Cada enquete vincula uma refeição a uma data específica.
--- Apenas uma enquete pode existir por data (UNIQUE data_enquete).
--- O sistema encerra automaticamente ao atingir o horario_limite.
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `enquetes` (
-    `id`               INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `refeicao_id`      INT UNSIGNED    NOT NULL,              -- Refeição vinculada
-    `admin_id`         INT UNSIGNED    NOT NULL,              -- Admin que criou a enquete
-    `data_enquete`     DATE            NOT NULL,              -- Data em que a enquete estará ativa
-    `horario_limite`   DATETIME        NOT NULL,              -- Após este horário, encerra automaticamente
-    `criado_em`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_enquete_data` (`data_enquete`),            -- Apenas uma enquete por dia
-    CONSTRAINT `fk_enquetes_refeicao` FOREIGN KEY (`refeicao_id`) REFERENCES `refeicoes` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_enquetes_admin`    FOREIGN KEY (`admin_id`)    REFERENCES `usuarios`  (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
--- -------------------------------------------------------------
 -- Tabela: intencoes_alimentares
--- Registra a resposta de cada aluno para uma enquete.
--- Um aluno só pode ter uma resposta por enquete (UNIQUE composto).
+-- Registra a resposta de cada aluno para uma refeição.
+-- Um aluno só pode ter uma resposta por refeição (UNIQUE composto).
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `intencoes_alimentares` (
-    `id`            INT UNSIGNED       NOT NULL AUTO_INCREMENT,
-    `aluno_id`      INT UNSIGNED       NOT NULL,
-    `enquete_id`    INT UNSIGNED       NOT NULL,              -- Referencia enquetes, não mais refeicoes
-    `resposta`      ENUM('sim', 'nao') NOT NULL,
-    `respondido_em` DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `alterado_em`   DATETIME           DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    `id`             INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    `aluno_id`       INT UNSIGNED    NOT NULL,
+    `refeicao_id`    INT UNSIGNED    NOT NULL,
+    `resposta`       ENUM('sim', 'nao') NOT NULL,
+    `respondido_em`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `alterado_em`    DATETIME        DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_intencao_aluno_enquete` (`aluno_id`, `enquete_id`),
-    CONSTRAINT `fk_intencoes_aluno`   FOREIGN KEY (`aluno_id`)   REFERENCES `alunos`   (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_intencoes_enquete` FOREIGN KEY (`enquete_id`) REFERENCES `enquetes` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+    UNIQUE KEY `uq_intencao_aluno_refeicao` (`aluno_id`, `refeicao_id`),  -- Impede duplicidade
+    CONSTRAINT `fk_intencoes_aluno`    FOREIGN KEY (`aluno_id`)    REFERENCES `alunos`    (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT `fk_intencoes_refeicao` FOREIGN KEY (`refeicao_id`) REFERENCES `refeicoes` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -133,33 +112,17 @@ CREATE TABLE IF NOT EXISTS `intencoes_alimentares` (
 -- Serve como histórico e auditoria dos envios realizados.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `resumos_envio` (
-    `id`            INT UNSIGNED          NOT NULL AUTO_INCREMENT,
-    `enquete_id`    INT UNSIGNED          NOT NULL,           -- Enquete referenciada no resumo
-    `admin_id`      INT UNSIGNED          NOT NULL,           -- Admin que acionou o envio
-    `mensagem`      TEXT                  NOT NULL,           -- Conteúdo exato enviado ao WhatsApp
-    `destinatario`  VARCHAR(100)          NOT NULL,           -- Número ou grupo de destino
-    `status`        ENUM('enviado', 'erro') NOT NULL,
-    `enviado_em`    DATETIME              NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `id`              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    `refeicao_id`     INT UNSIGNED    NOT NULL,
+    `admin_id`        INT UNSIGNED    NOT NULL,               -- Admin que acionou o envio
+    `mensagem`        TEXT            NOT NULL,               -- Conteúdo exato enviado ao WhatsApp
+    `destinatario`    VARCHAR(100)    NOT NULL,               -- Número ou grupo de destino
+    `status`          ENUM('enviado', 'erro') NOT NULL,
+    `enviado_em`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    CONSTRAINT `fk_resumos_enquete` FOREIGN KEY (`enquete_id`) REFERENCES `enquetes`  (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_resumos_admin`   FOREIGN KEY (`admin_id`)   REFERENCES `usuarios`  (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
--- -------------------------------------------------------------
--- Tabela: sugestoes
--- Registra as sugestões enviadas pelos alunos pelo sistema.
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `sugestoes` (
-    `id`          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `aluno_id`    INT UNSIGNED    NOT NULL,
-    `assunto`     ENUM('atendimento', 'sistema', 'outro') NOT NULL,
-    `mensagem`    TEXT            NOT NULL,
-    `enviado_em`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    PRIMARY KEY (`id`),
-    CONSTRAINT `fk_sugestoes_aluno` FOREIGN KEY (`aluno_id`) REFERENCES `alunos` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT `fk_resumos_refeicao` FOREIGN KEY (`refeicao_id`) REFERENCES `refeicoes`  (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT `fk_resumos_admin`    FOREIGN KEY (`admin_id`)    REFERENCES `usuarios`   (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -181,3 +144,17 @@ VALUES (
     1,        -- Admin não passa pelo fluxo de primeiro acesso
     1
 );
+--4:00
+CREATE TABLE IF NOT EXISTS `sugestoes` (
+    `id`           INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    `aluno_id`     INT UNSIGNED    NOT NULL,
+    `assunto`      ENUM('cardapio', 'atendimento', 'sistema', 'outro') NOT NULL,
+    `mensagem`     TEXT            NOT NULL,
+    `enviado_em`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    CONSTRAINT `fk_sugestoes_aluno` FOREIGN KEY (`aluno_id`) REFERENCES `alunos` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ -- 4:40
+ALTER TABLE `refeicoes`
+    ADD COLUMN `imagem` VARCHAR(100) NULL AFTER `descricao`;

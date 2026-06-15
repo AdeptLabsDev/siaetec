@@ -1,8 +1,8 @@
 <?php
 /**
  * admin/enquete.php
- * Resultados em tempo real da refeição do dia. Os totais são renderizados
- * no servidor e atualizados via fetch para api/resultados.php a cada 30s.
+ * Resultados em tempo real da enquete do dia. Os totais são renderizados no
+ * servidor e atualizados via fetch para api/resultados.php a cada 30s.
  */
 
 require_once __DIR__ . '/../includes/auth.php'; // sessão (antes de qualquer HTML)
@@ -11,30 +11,43 @@ require_once __DIR__ . '/../includes/db.php';   // $pdo
 verificar_sessao('admin');
 $usuario = usuario_logado();
 
-// Refeição de hoje
-$stmt = $pdo->prepare(
-    'SELECT id, titulo, data_refeicao, horario_limite
-       FROM refeicoes WHERE data_refeicao = :hoje
-      ORDER BY horario_limite DESC LIMIT 1'
-);
-$stmt->execute([':hoje' => date('Y-m-d')]);
-$refeicao = $stmt->fetch();
+// Enquete a exibir: ?id tem prioridade; sem ele, busca a enquete de hoje
+$id_param = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+
+if ($id_param) {
+    $stmt = $pdo->prepare(
+        'SELECT e.id AS enquete_id, e.data_enquete, e.horario_limite, r.titulo
+           FROM enquetes e
+           JOIN refeicoes r ON r.id = e.refeicao_id
+          WHERE e.id = :id LIMIT 1'
+    );
+    $stmt->execute([':id' => $id_param]);
+} else {
+    $stmt = $pdo->prepare(
+        'SELECT e.id AS enquete_id, e.data_enquete, e.horario_limite, r.titulo
+           FROM enquetes e
+           JOIN refeicoes r ON r.id = e.refeicao_id
+          WHERE e.data_enquete = :hoje LIMIT 1'
+    );
+    $stmt->execute([':hoje' => date('Y-m-d')]);
+}
+$enquete = $stmt->fetch();
 
 $sim = $nao = $sem_resposta = $total_alunos = $responderam = 0;
 $aberta = false;
-if ($refeicao) {
+if ($enquete) {
     $total_alunos = (int) $pdo->query('SELECT COUNT(*) FROM alunos WHERE ativo = 1')->fetchColumn();
     $st = $pdo->prepare(
         "SELECT COALESCE(SUM(resposta='sim'),0) AS sim, COALESCE(SUM(resposta='nao'),0) AS nao
-           FROM intencoes_alimentares WHERE refeicao_id = :r"
+           FROM intencoes_alimentares WHERE enquete_id = :e"
     );
-    $st->execute([':r' => $refeicao['id']]);
+    $st->execute([':e' => $enquete['enquete_id']]);
     $row = $st->fetch();
     $sim = (int) $row['sim'];
     $nao = (int) $row['nao'];
     $responderam  = $sim + $nao;
     $sem_resposta = max(0, $total_alunos - $responderam);
-    $aberta = enquete_aberta($refeicao['horario_limite']);
+    $aberta = enquete_aberta($enquete['horario_limite']);
 }
 ?>
 <!DOCTYPE html>
@@ -72,19 +85,19 @@ if ($refeicao) {
     <?php include __DIR__ . '/../includes/navbar-admin.php'; ?>
 
     <main class="conteudo">
-        <?php if (!$refeicao): ?>
+        <?php if (!$enquete): ?>
             <section class="cartao">
-                <p>Nenhuma refeição cadastrada para hoje.</p>
+                <p>Nenhuma enquete cadastrada para hoje.</p>
             </section>
         <?php else: ?>
             <div class="enquete-cabecalho">
-                <h1><?= htmlspecialchars($refeicao['titulo'], ENT_QUOTES, 'UTF-8') ?></h1>
+                <h1><?= htmlspecialchars($enquete['titulo'], ENT_QUOTES, 'UTF-8') ?></h1>
                 <span class="selo <?= $aberta ? 'selo-aberta' : 'selo-encerrada' ?>">
                     <?= $aberta ? 'Enquete aberta' : 'Enquete encerrada' ?>
                 </span>
             </div>
 
-            <section class="cartao" data-refeicao-id="<?= (int) $refeicao['id'] ?>">
+            <section class="cartao" data-enquete-id="<?= (int) $enquete['enquete_id'] ?>">
                 <div class="resultados">
                     <div class="resultado-card">
                         <div class="numero num-sim" id="r-sim"><?= $sim ?></div>
@@ -108,11 +121,11 @@ if ($refeicao) {
         <?php endif; ?>
     </main>
 
-    <?php if ($refeicao): ?>
+    <?php if ($enquete): ?>
     <script>
         (function () {
-            const cartao = document.querySelector('[data-refeicao-id]');
-            const id = cartao.dataset.refeicaoId;
+            const cartao = document.querySelector('[data-enquete-id]');
+            const id = cartao.dataset.enqueteId;
             const elSim = document.getElementById('r-sim');
             const elNao = document.getElementById('r-nao');
             const elSem = document.getElementById('r-sem');
@@ -121,9 +134,9 @@ if ($refeicao) {
 
             async function atualizar() {
                 try {
-                    const resp = await fetch('../api/resultados.php?refeicao_id=' + encodeURIComponent(id));
+                    const resp = await fetch('../api/resultados.php?enquete_id=' + encodeURIComponent(id));
                     const d = await resp.json();
-                    if (!resp.ok || !d || d.refeicao === null) return;
+                    if (!resp.ok || !d || d.enquete === null) return;
                     elSim.textContent = d.sim;
                     elNao.textContent = d.nao;
                     elSem.textContent = d.sem_resposta;

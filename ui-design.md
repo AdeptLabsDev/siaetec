@@ -365,7 +365,7 @@ Dois botões grandes e bem espaçados — otimizados para toque no mobile:
 - Subtítulo explicativo
 
 ### Formulário
-- Campo: Assunto (select com opções: Cardápio, Atendimento, Sistema, Outro)
+- Campo: Assunto (select com opções: Atendimento, Sistema, Outro)
 - Campo: Mensagem (textarea, mínimo 4 linhas, máximo 500 caracteres)
 - Contador de caracteres abaixo do textarea
 - Botão primário: "Enviar Sugestão"

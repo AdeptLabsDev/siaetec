@@ -1,7 +1,7 @@
 <?php
 /**
  * api/grafico.php
- * Endpoint JSON (admin) — histórico de votos agrupado por data da refeição.
+ * Endpoint JSON (admin) — histórico de votos agrupado por data da enquete.
  * Saída: [ { "data": "2026-06-14", "sim": 87, "nao": 12, "sem_resposta": 15 }, ... ]
  * sem_resposta = total de alunos ativos − (sim + nao) por data.
  */
@@ -21,14 +21,16 @@ if ($u === null || $u['tipo'] !== 'admin') {
 try {
     $total_ativos = (int) $pdo->query('SELECT COUNT(*) FROM alunos WHERE ativo = 1')->fetchColumn();
 
+    // JOIN enquetes + refeicoes + intencoes, agrupado pela data da enquete
     $linhas = $pdo->query(
-        "SELECT r.data_refeicao AS data,
+        "SELECT e.data_enquete AS data,
                 COALESCE(SUM(i.resposta = 'sim'), 0) AS sim,
                 COALESCE(SUM(i.resposta = 'nao'), 0) AS nao
-           FROM refeicoes r
-           LEFT JOIN intencoes_alimentares i ON i.refeicao_id = r.id
-          GROUP BY r.data_refeicao
-          ORDER BY r.data_refeicao ASC"
+           FROM enquetes e
+           JOIN refeicoes r ON r.id = e.refeicao_id
+           LEFT JOIN intencoes_alimentares i ON i.enquete_id = e.id
+          GROUP BY e.data_enquete
+          ORDER BY e.data_enquete ASC"
     )->fetchAll();
 } catch (PDOException $e) {
     http_response_code(500);

@@ -75,7 +75,7 @@ $integrantes = [
             <p class="sobre-texto">
                 O SIAetec é um Sistema de Intenção Alimentar Escolar desenvolvido como Trabalho de
                 Conclusão de Curso. Seu objetivo é permitir que os alunos informem, antes do horário
-                limite, se pretendem consumir a refeição do dia — ajudando a escola a planejar melhor
+                limite, se pretendem consumir a refeição do dia, ajudando a escola a planejar melhor
                 a produção da merenda e a reduzir o desperdício de alimentos.
             </p>
 

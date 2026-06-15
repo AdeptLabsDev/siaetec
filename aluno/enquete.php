@@ -1,11 +1,11 @@
 <?php
 /**
  * aluno/enquete.php
- * Enquete do Aluno — registra a intenção alimentar (SIM/NÃO) para a
- * refeição do dia. O envio é feito via AJAX (fetch) para api/responder.php.
+ * Enquete do Aluno — registra a intenção alimentar (SIM/NÃO) para a enquete
+ * de hoje. O envio é feito via AJAX (fetch) para api/responder.php.
  *
- * O estado de "encerrada" é verificado no servidor (horario_limite) antes
- * de renderizar: enquete fechada exibe apenas a resposta já registrada.
+ * O estado de "encerrada" é verificado no servidor (horario_limite da
+ * enquete) antes de renderizar.
  */
 
 require_once __DIR__ . '/../includes/auth.php'; // sessão (antes de qualquer HTML)
@@ -14,28 +14,27 @@ require_once __DIR__ . '/../includes/db.php';   // $pdo
 verificar_sessao('aluno');
 $usuario = usuario_logado();
 
-// Refeição do dia
-$hoje = date('Y-m-d');
+// Enquete ativa de hoje + refeição vinculada
 $stmt = $pdo->prepare(
-    'SELECT id, titulo, descricao, data_refeicao, horario_limite
-       FROM refeicoes
-      WHERE data_refeicao = :hoje
-      ORDER BY horario_limite DESC
+    'SELECT e.id AS enquete_id, e.data_enquete, e.horario_limite, r.titulo
+       FROM enquetes e
+       JOIN refeicoes r ON r.id = e.refeicao_id
+      WHERE e.data_enquete = CURDATE()
       LIMIT 1'
 );
-$stmt->execute([':hoje' => $hoje]);
-$refeicao = $stmt->fetch();
+$stmt->execute();
+$enquete = $stmt->fetch();
 
-$aberta = $refeicao ? enquete_aberta($refeicao['horario_limite']) : false;
+$aberta = $enquete ? enquete_aberta($enquete['horario_limite']) : false;
 
-// Resposta já registrada pelo aluno para esta refeição (se houver)
+// Resposta já registrada pelo aluno para esta enquete (se houver)
 $resposta_atual = null;
-if ($refeicao && $usuario['aluno_id'] !== null) {
+if ($enquete && $usuario['aluno_id'] !== null) {
     $st = $pdo->prepare(
         'SELECT resposta FROM intencoes_alimentares
-          WHERE aluno_id = :a AND refeicao_id = :r LIMIT 1'
+          WHERE aluno_id = :a AND enquete_id = :e LIMIT 1'
     );
-    $st->execute([':a' => $usuario['aluno_id'], ':r' => $refeicao['id']]);
+    $st->execute([':a' => $usuario['aluno_id'], ':e' => $enquete['enquete_id']]);
     $linha = $st->fetch();
     $resposta_atual = $linha ? $linha['resposta'] : null;
 }
@@ -90,18 +89,18 @@ if ($refeicao && $usuario['aluno_id'] !== null) {
     <?php include __DIR__ . '/../includes/navbar-aluno.php'; ?>
 
     <main class="conteudo enquete-wrapper">
-        <?php if (!$refeicao): ?>
+        <?php if (!$enquete): ?>
             <section class="cartao enquete-cartao">
                 <p>Nenhuma refeição disponível para responder hoje.</p>
             </section>
         <?php else: ?>
             <section class="cartao enquete-cartao"
-                     data-refeicao-id="<?= (int) $refeicao['id'] ?>"
+                     data-enquete-id="<?= (int) $enquete['enquete_id'] ?>"
                      data-aberta="<?= $aberta ? '1' : '0' ?>">
                 <h1>Você vai almoçar hoje?</h1>
                 <p class="enquete-sub">
-                    <?= htmlspecialchars($refeicao['titulo'], ENT_QUOTES, 'UTF-8') ?> ·
-                    <?= htmlspecialchars(formatar_data($refeicao['data_refeicao'], 'd/m/Y'), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars($enquete['titulo'], ENT_QUOTES, 'UTF-8') ?> ·
+                    <?= htmlspecialchars(formatar_data($enquete['data_enquete'], 'd/m/Y'), ENT_QUOTES, 'UTF-8') ?>
                 </p>
 
                 <?php if (!$aberta): ?>
@@ -139,11 +138,11 @@ if ($refeicao && $usuario['aluno_id'] !== null) {
         <?php endif; ?>
     </main>
 
-    <?php if ($refeicao && $aberta): ?>
+    <?php if ($enquete && $aberta): ?>
     <script>
         (function () {
             const cartao   = document.querySelector('.enquete-cartao');
-            const refeicao = parseInt(cartao.dataset.refeicaoId, 10);
+            const enqueteId = parseInt(cartao.dataset.enqueteId, 10);
             const botoes   = cartao.querySelectorAll('.opcao');
             const confirm  = document.getElementById('confirmacao');
             const confTxt  = document.getElementById('confirmacao-texto');
@@ -168,7 +167,7 @@ if ($refeicao && $usuario['aluno_id'] !== null) {
                     const resp = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ refeicao_id: refeicao, resposta: resposta })
+                        body: JSON.stringify({ enquete_id: enqueteId, resposta: resposta })
                     });
                     const dados = await resp.json();
                     if (!resp.ok || dados.erro) {
