@@ -17,7 +17,7 @@ define('EVOLUTION_API_TOKEN', '');
 define('EVOLUTION_INSTANCIA', '');
 define('WHATSAPP_DESTINO', '');
 
-// Brevo
+// E-mail — provedor de envio ainda será definido pela instituição (placeholders)
 define('BREVO_API_KEY', '');
 define('BREVO_REMETENTE_EMAIL', '');
 define('BREVO_REMETENTE_NOME', '');

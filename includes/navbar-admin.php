@@ -118,10 +118,14 @@ if (!function_exists('nav_ativo')) {
 
 <header class="barra-navegacao">
     <div class="nav-marca">
-        <img class="nav-logo" src="../assets/img/siaetec-logo.webp" alt="SIAetec" width="120" height="36">
+        <a href="dashboard.php">
+            <img class="nav-logo" src="../assets/img/siaetec-logo.webp" alt="SIAetec" width="120" height="36">
+        </a>
         <span class="nav-divisor"></span>
+        <a href="dashboard.php">
         <img class="nav-logo" src="../assets/img/cps-etec-logo.webp" alt="Etec · Centro Paula Souza"
              width="90" height="36" loading="lazy" decoding="async">
+        </a>
     </div>
 
     <nav class="nav-links">
