@@ -3,7 +3,7 @@
 -- Schema do banco de dados
 -- Banco: sistema_alimentar
 -- Codificação: utf8mb4_unicode_ci
--- Versão: 2.0 — Separação Refeições / Enquetes
+-- Versão: 2.1 — Credenciais por e-mail
 -- =============================================================
 
 SET NAMES utf8mb4;
@@ -15,14 +15,17 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- Tanto alunos quanto admins possuem um registro aqui.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `usuarios` (
-    `id`              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    `nome`            VARCHAR(100)    NOT NULL,
-    `login`           VARCHAR(20)     NOT NULL,               -- RM para alunos, identificador para admins
-    `senha`           VARCHAR(255)    NOT NULL,               -- Armazenada com password_hash()
-    `tipo`            ENUM('aluno', 'admin') NOT NULL,
-    `senha_alterada`  TINYINT(1)      NOT NULL DEFAULT 0,     -- 0 = primeiro acesso, 1 = senha já definida
-    `ativo`           TINYINT(1)      NOT NULL DEFAULT 1,     -- 0 = inativo, 1 = ativo
-    `criado_em`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `id`                        INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    `nome`                      VARCHAR(100)    NOT NULL,
+    `login`                     VARCHAR(20)     NOT NULL,               -- RM para alunos, identificador para admins
+    `email`                     VARCHAR(150)    DEFAULT NULL,           -- Destino do envio de credenciais
+    `senha`                     VARCHAR(255)    NOT NULL,               -- Armazenada com password_hash()
+    `tipo`                      ENUM('aluno', 'admin') NOT NULL,
+    `senha_alterada`            TINYINT(1)      NOT NULL DEFAULT 0,     -- 0 = primeiro acesso, 1 = senha já definida
+    `credenciais_enviadas`      TINYINT(1)      NOT NULL DEFAULT 0,     -- 0 = nunca enviado/entregue, 1 = enviado por e-mail
+    `credenciais_enviadas_em`   DATETIME        DEFAULT NULL,           -- Data/hora do último envio bem-sucedido
+    `ativo`                     TINYINT(1)      NOT NULL DEFAULT 1,     -- 0 = inativo, 1 = ativo
+    `criado_em`                 DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_usuarios_login` (`login`)
