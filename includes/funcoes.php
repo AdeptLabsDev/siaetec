@@ -56,3 +56,68 @@ function formatar_data(string $data, string $formato = 'd/m/Y'): string
     }
     return date($formato, $timestamp);
 }
+
+/**
+ * Gera uma senha provisória sem caracteres visualmente ambíguos.
+ *
+ * @param  int $tamanho
+ * @return string
+ */
+function gerar_senha_aleatoria($tamanho = 8)
+{
+    $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $senha = '';
+    $tamanho = (int) $tamanho;
+    $ultimo_indice = strlen($alfabeto) - 1;
+
+    for ($i = 0; $i < $tamanho; $i++) {
+        $senha .= $alfabeto[random_int(0, $ultimo_indice)];
+    }
+
+    return $senha;
+}
+
+/**
+ * Escapa um campo para CSV compatível com Excel PT-BR (separador ';').
+ * Neutraliza injeção de fórmula (=, +, -, @) prefixando aspa simples e
+ * envolve em aspas (dobrando as internas) quando há aspas, ';' ou quebra
+ * de linha. Espelha a mesma regra usada no gerador client-side.
+ *
+ * @param  string $valor
+ * @return string
+ */
+function csv_campo_credencial(string $valor): string
+{
+    if (preg_match('/^[=+\-@\t\r]/', $valor) === 1) {
+        $valor = "'" . $valor;
+    }
+    if (preg_match('/[";\r\n]/', $valor) === 1) {
+        $valor = '"' . str_replace('"', '""', $valor) . '"';
+    }
+    return $valor;
+}
+
+/**
+ * Monta o conteúdo completo de um CSV de credenciais: BOM UTF-8 + cabeçalho +
+ * linhas, separador ';' e quebras CRLF. Colunas fixas na ordem:
+ * nome, rm, email, senha, email_enviado. Não persiste nada — apenas devolve
+ * a string, que o chamador transmite como download.
+ *
+ * @param  array<int,array<string,scalar|null>> $linhas
+ * @return string
+ */
+function montar_csv_credenciais(array $linhas): string
+{
+    $colunas = ['nome', 'rm', 'email', 'senha', 'email_enviado'];
+    $saida = "\xEF\xBB\xBF" . implode(';', $colunas) . "\r\n";
+
+    foreach ($linhas as $linha) {
+        $campos = [];
+        foreach ($colunas as $coluna) {
+            $campos[] = csv_campo_credencial((string) ($linha[$coluna] ?? ''));
+        }
+        $saida .= implode(';', $campos) . "\r\n";
+    }
+
+    return $saida;
+}

@@ -227,6 +227,18 @@ img {
     padding: 1.5rem;
 }
 
+/* Em telas estreitas a grid do admin vira coluna única, mas itens de grid têm
+   min-width: auto e não encolhem abaixo do conteúdo — a tabela larga e os
+   inputs estouram a largura do viewport (página abre "com zoom"). min-width: 0
+   permite a coluna encolher e caber na tela. */
+.admin-grid > *,
+.resumo-grid > * { min-width: 0; }
+
+/* Uma tabela não encolhe abaixo do seu min-content; quando ela é mais larga
+   que o card (telas estreitas), rola horizontalmente dentro do card em vez de
+   vazar o layout. Em telas largas o conteúdo cabe e nenhum scroll aparece. */
+.cartao { overflow-x: auto; }
+
 /* -----------------------------------------------------------
    6. Responsividade (ui-design.md seção 11)
    ----------------------------------------------------------- */

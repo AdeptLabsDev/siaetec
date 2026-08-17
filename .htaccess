@@ -1,0 +1,27 @@
+# =============================================================
+# SIAETEC — Configurações Apache
+# Compressão GZIP e cache de arquivos estáticos
+# =============================================================
+
+# Compressão GZIP — reduz o tamanho de HTML, CSS e JS enviados
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Cache de arquivos estáticos — evita reenvio em cada requisição
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/javascript "access plus 1 week"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+</IfModule>
+
+# Bloqueia listagem de diretórios (segurança básica)
+Options -Indexes
